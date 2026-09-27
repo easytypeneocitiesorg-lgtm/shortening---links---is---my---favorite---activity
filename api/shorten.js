@@ -1,33 +1,62 @@
+const { kv } = require('@vercel/kv');
+
+const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function generateCode(length) {
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  }
+  return code;
+}
+
 module.exports = async (req, res) => {
-  // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { url } = req.body || {};
+    let { url } = req.body || {};
+    if (!url) return res.status(400).json({ error: 'URL required' });
 
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'URL is required' });
+    // auto add https if missing
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
     }
 
-    // Use is.gd (super short links)
-    const apiUrl = `https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`;
-    
-    const response = await fetch(apiUrl);
-    const data = await response.json();
-
-    // is.gd returns either { shorturl: "..." } or { errorcode, errormessage }
-    if (data.shorturl) {
-      return res.status(200).json({ shorturl: data.shorturl });
-    } else {
-      return res.status(400).json({ 
-        error: data.errormessage || 'Failed to create short link' 
-      });
+    // try to reuse existing short code for same URL
+    const existing = await kv.get(`url:${url}`);
+    if (existing) {
+      const host = req.headers.host;
+      return res.json({ shortUrl: `https://${host}/${existing}` });
     }
+
+    // generate shortest possible code
+    let length = 1;
+    let code;
+    let attempts = 0;
+
+    while (true) {
+      code = generateCode(length);
+      const exists = await kv.exists(`code:${code}`);
+      if (!exists) break;
+
+      attempts++;
+      if (attempts > 15) {
+        length++;
+        attempts = 0;
+      }
+    }
+
+    // save both ways
+    await kv.set(`code:${code}`, url);
+    await kv.set(`url:${url}`, code);
+
+    const host = req.headers.host;
+    res.json({ shortUrl: `https://${host}/${code}` });
 
   } catch (err) {
-    console.error('Shorten error:', err);
-    return res.status(500).json({ error: 'Server error while shortening' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to shorten' });
   }
 };
