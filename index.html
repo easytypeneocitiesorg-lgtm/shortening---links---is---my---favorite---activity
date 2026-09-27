@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ultimate Shortener</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 40px;
+      font-size: 0.95rem;
+    }
+    .box {
+      width: 100%;
+      max-width: 520px;
+    }
+    input {
+      width: 100%;
+      padding: 18px 20px;
+      font-size: 1.1rem;
+      background: #161616;
+      border: 1px solid #333;
+      border-radius: 12px;
+      color: #fff;
+      outline: none;
+      margin-bottom: 12px;
+    }
+    input:focus { border-color: #fff; }
+    button {
+      width: 100%;
+      padding: 18px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    button:hover { background: #ddd; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result {
+      margin-top: 30px;
+      padding: 20px;
+      background: #161616;
+      border: 1px solid #333;
+      border-radius: 12px;
+      text-align: center;
+      display: none;
+    }
+    .result a {
+      color: #4ade80;
+      font-size: 1.4rem;
+      font-family: monospace;
+      word-break: break-all;
+      text-decoration: none;
+    }
+    .result a:hover { text-decoration: underline; }
+    .copy {
+      margin-top: 12px;
+      background: transparent;
+      color: #888;
+      border: 1px solid #333;
+      font-size: 0.9rem;
+      padding: 8px 16px;
+      width: auto;
+    }
+    .copy:hover { color: #fff; border-color: #666; }
+    .error {
+      color: #f87171;
+      margin-top: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>ULTIMATE SHORTENER</h1>
+  <p>as short as it physically gets</p>
+
+  <div class="box">
+    <input type="url" id="url" placeholder="paste any long link here..." required>
+    <button id="btn" onclick="shorten()">SHORTEN IT</button>
+
+    <div class="result" id="result">
+      <div style="color:#888;font-size:0.85rem;margin-bottom:8px">your ultra-short link:</div>
+      <a id="shortLink" href="#" target="_blank"></a>
+      <br>
+      <button class="copy" onclick="copy()">copy</button>
+    </div>
+
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    async function shorten() {
+      const url = document.getElementById('url').value.trim();
+      const btn = document.getElementById('btn');
+      const result = document.getElementById('result');
+      const error = document.getElementById('error');
+      const shortLink = document.getElementById('shortLink');
+
+      if (!url) return;
+
+      btn.disabled = true;
+      btn.textContent = 'crushing...';
+      result.style.display = 'none';
+      error.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+
+        if (data.shorturl) {
+          shortLink.href = data.shorturl;
+          shortLink.textContent = data.shorturl;
+          result.style.display = 'block';
+        } else {
+          throw new Error(data.errormessage || 'Failed to shorten');
+        }
+      } catch (err) {
+        error.textContent = err.message;
+        error.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'SHORTEN IT';
+      }
+    }
+
+    function copy() {
+      const link = document.getElementById('shortLink').textContent;
+      navigator.clipboard.writeText(link);
+      alert('copied');
+    }
+
+    // Enter key support
+    document.getElementById('url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') shorten();
+    });
+  </script>
+</body>
+</html>
